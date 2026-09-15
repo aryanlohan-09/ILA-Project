@@ -62,4 +62,10 @@ public class MasteryService {
     public List<StudentTopicMastery> getWeakTopics(Long studentId, double threshold) {
         return masteryRepository.findByStudentIdAndMasteryScoreLessThan(studentId, threshold);
     }
+
+    public double getForgettingRisk(Long studentId, Long topicId) {
+        StudentTopicMastery mastery = getOrCreateMastery(studentId, topicId);
+        return ForgettingRiskCalculator.calculateForgettingRisk(
+                mastery.getMasteryScore(), mastery.getLastPracticedAt());
+    }
 }

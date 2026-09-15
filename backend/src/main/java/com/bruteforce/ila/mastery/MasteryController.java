@@ -49,4 +49,10 @@ public class MasteryController {
                 mastery.getMasteryScore(), mastery.getTotalAttempts(),
                 mastery.getCorrectAttempts(), mastery.getLastPracticedAt());
     }
+
+    @GetMapping("/student/{studentId}/topic/{topicId}/forgetting-risk")
+    public ResponseEntity<Double> getForgettingRisk(
+            @PathVariable Long studentId, @PathVariable Long topicId) {
+        return ResponseEntity.ok(masteryService.getForgettingRisk(studentId, topicId));
+    }
 }
