@@ -20,19 +20,25 @@ public class QuizService {
     private final StudentRepository studentRepository;
     private final TopicRepository topicRepository;
     private final MasteryService masteryService;
+    private final com.bruteforce.ila.studyplan.StudyPlanService studyPlanService;
+    private final com.bruteforce.ila.studyplan.StudyPlanRepository studyPlanRepository;
 
     public QuizService(QuestionRepository questionRepository,
                        QuizAttemptRepository quizAttemptRepository,
                        AnswerAttemptRepository answerAttemptRepository,
                        StudentRepository studentRepository,
                        TopicRepository topicRepository,
-                       MasteryService masteryService) {
+                       MasteryService masteryService,
+                       com.bruteforce.ila.studyplan.StudyPlanService studyPlanService,
+                       com.bruteforce.ila.studyplan.StudyPlanRepository studyPlanRepository) {
         this.questionRepository = questionRepository;
         this.quizAttemptRepository = quizAttemptRepository;
         this.answerAttemptRepository = answerAttemptRepository;
         this.studentRepository = studentRepository;
         this.topicRepository = topicRepository;
         this.masteryService = masteryService;
+        this.studyPlanService = studyPlanService;
+        this.studyPlanRepository = studyPlanRepository;
     }
 
     public Question createQuestion(String questionText, String optionA, String optionB,
@@ -47,6 +53,18 @@ public class QuizService {
 
     public List<Question> getQuestionsByTopic(Long topicId) {
         return questionRepository.findByTopicId(topicId);
+    }
+
+    public Long getSubjectIdForTopic(Long topicId) {
+        return topicRepository.findById(topicId)
+                .orElseThrow(() -> new java.util.NoSuchElementException("Topic with id " + topicId + " not found."))
+                .getUnit().getSubject().getId();
+    }
+
+    public Long getTopicIdForQuestion(Long questionId) {
+        return questionRepository.findById(questionId)
+                .orElseThrow(() -> new java.util.NoSuchElementException("Question with id " + questionId + " not found."))
+                .getTopic().getId();
     }
 
     /**
@@ -87,5 +105,27 @@ public class QuizService {
         attempt.setTotalQuestions(answers.size());
         attempt.setCorrectAnswers(correctCount);
         return quizAttemptRepository.save(attempt);
+    }
+
+    /**
+     * The Adaptive Replanner. Called automatically right after a quiz is
+     * submitted. If the student has an active study plan whose subject
+     * matches the topics just tested, regenerate it using the SAME
+     * generatePlan(...) logic from Step 2 - no new planning logic here,
+     * just triggering the existing logic at the right moment.
+     */
+    public com.bruteforce.ila.studyplan.dto.ReplanResultResponse replanIfNeeded(Long studentId, Long subjectId) {
+        return studyPlanRepository.findByStudentIdAndIsActiveTrue(studentId)
+                .map(activePlan -> {
+                    Long oldPlanId = activePlan.getId();
+                    var newPlan = studyPlanService.generatePlan(
+                            studentId, subjectId, activePlan.getAvailableHours(), activePlan.getHoursUntilExam());
+                    return new com.bruteforce.ila.studyplan.dto.ReplanResultResponse(
+                            true, oldPlanId, newPlan.getId(),
+                            "Study plan automatically regenerated based on updated mastery.");
+                })
+                .orElseGet(() -> new com.bruteforce.ila.studyplan.dto.ReplanResultResponse(
+                        false, null, null,
+                        "No active study plan found - nothing to replan."));
     }
 }

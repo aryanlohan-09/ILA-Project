@@ -34,12 +34,22 @@ public class QuizController {
     }
 
     @PostMapping("/submit")
-    public ResponseEntity<QuizResultResponse> submitQuiz(@Valid @RequestBody SubmitQuizRequest request) {
+    public ResponseEntity<java.util.Map<String, Object>> submitQuiz(@Valid @RequestBody SubmitQuizRequest request) {
         QuizAttempt attempt = quizService.submitQuiz(request.getStudentId(), request.getAnswers());
         double scorePercentage = (attempt.getCorrectAnswers() * 100.0) / attempt.getTotalQuestions();
-        QuizResultResponse response = new QuizResultResponse(
+        QuizResultResponse quizResult = new QuizResultResponse(
                 attempt.getId(), attempt.getTotalQuestions(), attempt.getCorrectAnswers(),
                 scorePercentage, attempt.getSubmittedAt());
+
+        // Determine the subject being tested from the first answered question, then replan
+        Long firstQuestionId = request.getAnswers().get(0).getQuestionId();
+        Long topicId = quizService.getTopicIdForQuestion(firstQuestionId);
+        Long subjectId = quizService.getSubjectIdForTopic(topicId);
+        var replanResult = quizService.replanIfNeeded(request.getStudentId(), subjectId);
+
+        java.util.Map<String, Object> response = new java.util.HashMap<>();
+        response.put("quizResult", quizResult);
+        response.put("replan", replanResult);
         return ResponseEntity.ok(response);
     }
 
